@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Trafikkstøy">
+<meta name="theme-color" content="#0a0a0a">
+<title>Trafikkstøy demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --surface2: #1c1c1c;
+    --border: #2a2a2a;
+    --text: #f0ede8;
+    --muted: #6b6660;
+    --green: #22c77a;
+    --yellow: #f0b429;
+    --orange: #f07030;
+    --red: #e8402a;
+    --accent: #22c77a;
+    --font-mono: 'DM Mono', monospace;
+    --font: 'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100dvh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Layout ── */
+  .app { display: flex; flex-direction: column; min-height: 100dvh; }
+
+  /* ── Header ── */
+  header {
+    padding: env(safe-area-inset-top, 16px) 20px 0;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .logo { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--accent); letter-spacing: .08em; }
+  .logo span { color: var(--muted); }
+  .session-info { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+
+  /* ── Nav tabs ── */
+  nav {
+    display: flex; gap: 4px; padding: 16px 20px 0;
+  }
+  .tab {
+    flex: 1; padding: 8px 4px; background: none; border: 0.5px solid var(--border);
+    border-radius: 8px; color: var(--muted); font-family: var(--font); font-size: 12px;
+    font-weight: 400; cursor: pointer; transition: all .15s; text-align: center;
+  }
+  .tab.active { background: var(--surface2); color: var(--text); border-color: #3a3a3a; }
+
+  /* ── Panels ── */
+  .panel { display: none; flex: 1; flex-direction: column; padding: 20px; }
+  .panel.active { display: flex; }
+
+  /* ── Big meter ── */
+  .meter-wrap {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; flex: 1; gap: 8px; padding: 20px 0;
+  }
+
+  .meter-ring {
+    position: relative; width: 220px; height: 220px;
+  }
+  .meter-ring svg { position: absolute; top: 0; left: 0; transform: rotate(-90deg); }
+  .ring-bg { fill: none; stroke: var(--surface2); stroke-width: 6; }
+  .ring-fill { fill: none; stroke-width: 6; stroke-linecap: round;
+    transition: stroke-dashoffset .25s ease, stroke .25s ease; }
+
+  .meter-center {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 0;
+  }
+  .db-value {
+    font-family: var(--font-mono); font-size: 64px; font-weight: 300;
+    line-height: 1; transition: color .25s;
+    font-variant-numeric: tabular-nums;
+  }
+  .db-unit { font-family: var(--font-mono); font-size: 13px; color: var(--muted); letter-spacing: .1em; }
+
+  /* ── Level bar ── */
+  .level-bar-wrap { width: 100%; max-width: 280px; }
+  .level-bar-track {
+    height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden;
+  }
+  .level-bar-fill {
+    height: 100%; border-radius: 2px; width: 0%;
+    transition: width .15s ease, background .25s;
+  }
+  .level-labels {
+    display: flex; justify-content: space-between;
+    font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-top: 5px;
+  }
+
+  /* ── Status badge ── */
+  .status-badge {
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em;
+    padding: 4px 12px; border-radius: 20px; border: 0.5px solid;
+    transition: all .3s;
+  }
+
+  /* ── Stats row ── */
+  .stats-row {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    margin-bottom: 16px;
+  }
+  .stat-card {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: 10px; padding: 12px 8px; text-align: center;
+  }
+  .stat-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+  .stat-val { font-family: var(--font-mono); font-size: 22px; font-weight: 400; font-variant-numeric: tabular-nums; }
+  .stat-unit { font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+  /* ── Waveform ── */
+  .waveform-wrap {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: 10px; margin-bottom: 16px; overflow: hidden; height: 64px;
+    position: relative;
+  }
+  .waveform-canvas { width: 100%; height: 100%; display: block; }
+
+  /* ── Threshold ── */
+  .threshold-row {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+  }
+  .threshold-label { font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .threshold-row input[type=range] { flex: 1; accent-color: var(--accent); }
+  .threshold-val { font-family: var(--font-mono); font-size: 12px; color: var(--text); min-width: 44px; text-align: right; }
+
+  /* ── Record button ── */
+  .record-btn {
+    width: 100%; padding: 16px; border-radius: 12px; border: none;
+    font-family: var(--font); font-size: 15px; font-weight: 500;
+    cursor: pointer; transition: all .2s; letter-spacing: .02em;
+  }
+  .record-btn.idle { background: var(--surface2); color: var(--green); border: 0.5px solid var(--green); }
+  .record-btn.recording { background: var(--surface2); color: var(--red); border: 0.5px solid var(--red); }
+  .record-btn:active { transform: scale(0.98); }
+
+  /* ── Event log ── */
+  .event-log {
+    flex: 1; overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .event-empty {
+    text-align: center; padding: 60px 20px;
+    font-family: var(--font-mono); font-size: 12px; color: var(--muted);
+    line-height: 1.8;
+  }
+  .event-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-bottom: 0.5px solid var(--border);
+    animation: slideIn .2s ease;
+  }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .event-db { font-family: var(--font-mono); font-size: 16px; font-weight: 500; }
+  .event-meta { font-family: var(--font-mono); font-size: 11px; color: var(--muted); text-align: right; }
+
+  /* ── Camera panel ── */
+  #panel-camera {
+    padding: 0; position: relative; overflow: hidden;
+    background: #000;
+  }
+  #cameraVideo {
+    width: 100%; height: 100%; object-fit: cover;
+    display: block;
+  }
+  .cam-overlay {
+    position: absolute; inset: 0; pointer-events: none;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .cam-top {
+    padding: 16px 16px 0;
+    display: flex; justify-content: space-between; align-items: flex-start;
+  }
+  .cam-db-badge {
+    background: rgba(0,0,0,0.65); backdrop-filter: blur(8px);
+    border: 0.5px solid rgba(255,255,255,0.15);
+    border-radius: 12px; padding: 10px 16px; text-align: center;
+  }
+  .cam-db-val {
+    font-family: var(--font-mono); font-size: 36px; font-weight: 300;
+    font-variant-numeric: tabular-nums; line-height: 1;
+  }
+  .cam-db-lbl { font-family: var(--font-mono); font-size: 10px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+  .cam-laeq-badge {
+    background: rgba(0,0,0,0.65); backdrop-filter: blur(8px);
+    border: 0.5px solid rgba(255,255,255,0.15);
+    border-radius: 12px; padding: 10px 14px; text-align: right;
+  }
+  .cam-laeq-val { font-family: var(--font-mono); font-size: 18px; font-weight: 300; }
+  .cam-laeq-lbl { font-family: var(--font-mono); font-size: 10px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+
+  /* Direction counters middle strip */
+  .cam-dir-strip {
+    display: flex; justify-content: center; gap: 16px;
+    pointer-events: none;
+  }
+  .cam-dir-pill {
+    background: rgba(0,0,0,0.65); backdrop-filter: blur(8px);
+    border: 0.5px solid rgba(255,255,255,0.15);
+    border-radius: 40px; padding: 8px 20px;
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--font-mono);
+  }
+  .cam-dir-arrow { font-size: 16px; color: rgba(255,255,255,0.6); }
+  .cam-dir-num { font-size: 28px; font-weight: 300; font-variant-numeric: tabular-nums; }
+
+  /* Bottom tap-to-count grid */
+  .cam-bottom {
+    padding: 0 12px;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  }
+  .cam-btn-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    pointer-events: all;
+  }
+  .cam-veh-btn {
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
+    border: 0.5px solid rgba(255,255,255,0.18);
+    border-radius: 12px; padding: 10px 6px;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    cursor: pointer; transition: all .12s; user-select: none;
+  }
+  .cam-veh-btn:active { transform: scale(0.93); background: rgba(34,199,122,0.25); border-color: var(--green); }
+  .cam-veh-btn.flash { background: rgba(34,199,122,0.3); border-color: var(--green); }
+  .cam-veh-ico { font-size: 22px; }
+  .cam-veh-name { font-size: 10px; color: rgba(255,255,255,0.6); }
+  .cam-veh-cnt { font-family: var(--font-mono); font-size: 18px; font-weight: 400; font-variant-numeric: tabular-nums; }
+
+  /* Camera start/flip controls */
+  .cam-controls {
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 8px; pointer-events: all;
+    z-index: 10;
+  }
+  .cam-ctrl-btn {
+    background: rgba(0,0,0,0.65); backdrop-filter: blur(8px);
+    border: 0.5px solid rgba(255,255,255,0.2);
+    border-radius: 20px; padding: 8px 16px;
+    color: #fff; font-family: var(--font); font-size: 13px;
+    cursor: pointer; transition: all .15s;
+  }
+  .cam-ctrl-btn:active { background: rgba(255,255,255,0.15); }
+
+  /* No-camera placeholder */
+  .cam-placeholder {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px;
+    background: var(--surface);
+  }
+  .cam-placeholder-icon { font-size: 48px; opacity: .4; }
+  .cam-placeholder-text { font-family: var(--font-mono); font-size: 12px; color: var(--muted); text-align: center; line-height: 1.8; }
+
+  /* Level bar inside camera */
+  .cam-level-bar {
+    position: absolute; left: 0; bottom: 0; width: 100%; height: 3px;
+    background: rgba(255,255,255,0.08);
+  }
+  .cam-level-fill {
+    height: 100%; width: 0%; transition: width .15s, background .25s;
+  }
+
+  /* ── AI detection tags ── */
+  #aiTagsContainer {
+    position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+  }
+  .ai-tag {
+    position: absolute;
+    background: rgba(0,0,0,0.72); backdrop-filter: blur(6px);
+    border-radius: 8px; padding: 6px 10px;
+    display: flex; flex-direction: column; gap: 2px;
+    border: 1px solid rgba(255,255,255,0.12);
+    animation: tagIn .2s ease;
+    max-width: 160px;
+  }
+  @keyframes tagIn { from { opacity:0; transform:scale(.92); } to { opacity:1; transform:scale(1); } }
+  .ai-tag-type {
+    font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+    white-space: nowrap;
+  }
+  .ai-tag-plate {
+    font-family: var(--font-mono); font-size: 14px; font-weight: 500;
+    letter-spacing: .12em; color: #fff;
+    background: rgba(255,255,255,0.1); border-radius: 4px;
+    padding: 2px 6px; text-align: center;
+  }
+  .ai-tag-db {
+    font-family: var(--font-mono); font-size: 10px; color: rgba(255,255,255,0.55);
+  }
+  /* Scan line animation while processing */
+  .cam-scanning::after {
+    content: ''; position: absolute; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--green), transparent);
+    animation: scan 1.2s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes scan { 0%{top:0;opacity:1} 100%{top:100%;opacity:0} }
+
+  /* API key input overlay */
+  .api-key-overlay {
+    position: absolute; inset: 0; z-index: 20;
+    background: rgba(10,10,10,0.92); backdrop-filter: blur(12px);
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 32px; gap: 16px;
+  }
+  .api-key-title {
+    font-family: var(--font-mono); font-size: 13px; color: var(--accent);
+    letter-spacing: .06em; text-align: center;
+  }
+  .api-key-desc {
+    font-size: 13px; color: var(--muted); text-align: center; line-height: 1.6;
+    max-width: 280px;
+  }
+  .api-key-input {
+    width: 100%; background: var(--surface2); border: 0.5px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; color: var(--text);
+    font-family: var(--font-mono); font-size: 12px; outline: none;
+  }
+  .api-key-input:focus { border-color: var(--accent); }
+  .api-key-btn {
+    width: 100%; padding: 14px; border-radius: 10px;
+    background: var(--surface2); color: var(--green);
+    border: 0.5px solid var(--green); font-family: var(--font);
+    font-size: 14px; font-weight: 500; cursor: pointer;
+  }
+  .api-key-skip {
+    font-family: var(--font-mono); font-size: 11px; color: var(--muted);
+    cursor: pointer; text-decoration: underline;
+  }
+  .vehicle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  .vehicle-card {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: 12px; padding: 16px; display: flex;
+    flex-direction: column; align-items: center; gap: 6px;
+    cursor: pointer; transition: all .15s; user-select: none;
+  }
+  .vehicle-card:active { transform: scale(0.96); background: var(--surface2); }
+  .vehicle-icon { font-size: 28px; }
+  .vehicle-name { font-size: 12px; color: var(--muted); }
+  .vehicle-count {
+    font-family: var(--font-mono); font-size: 32px; font-weight: 300;
+    font-variant-numeric: tabular-nums;
+  }
+  .vehicle-card.highlighted { border-color: var(--accent); }
+
+  .direction-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;
+  }
+  .dir-card {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: 12px; padding: 14px; text-align: center;
+  }
+  .dir-arrow { font-family: var(--font-mono); font-size: 24px; margin-bottom: 4px; }
+  .dir-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+  .dir-count { font-family: var(--font-mono); font-size: 28px; font-weight: 300; }
+
+  .reset-btn {
+    width: 100%; padding: 12px; background: none;
+    border: 0.5px solid var(--border); border-radius: 10px;
+    color: var(--muted); font-family: var(--font); font-size: 13px;
+    cursor: pointer; transition: all .15s;
+  }
+  .reset-btn:active { background: var(--surface); }
+
+  /* ── Report panel ── */
+  .report-header {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: 12px; padding: 16px; margin-bottom: 12px;
+  }
+  .report-title { font-size: 13px; color: var(--muted); margin-bottom: 2px; }
+  .report-laeq {
+    font-family: var(--font-mono); font-size: 42px; font-weight: 300;
+    font-variant-numeric: tabular-nums; line-height: 1;
+  }
+  .report-laeq-unit { font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+
+  .zone-badge {
+    display: inline-block; padding: 4px 10px; border-radius: 6px;
+    font-family: var(--font-mono); font-size: 11px; margin-top: 8px;
+    border: 0.5px solid;
+  }
+
+  .report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .report-item {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: 10px; padding: 12px;
+  }
+  .report-item-label { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+  .report-item-val { font-family: var(--font-mono); font-size: 18px; font-weight: 400; }
+
+  .law-box {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: 12px; padding: 14px; margin-bottom: 12px;
+  }
+  .law-title { font-size: 12px; color: var(--muted); margin-bottom: 8px; font-family: var(--font-mono); }
+  .law-row {
+    display: flex; justify-content: space-between;
+    padding: 6px 0; border-bottom: 0.5px solid var(--border);
+    font-size: 12px;
+  }
+  .law-row:last-child { border-bottom: none; }
+  .law-row-label { color: var(--muted); }
+  .law-row-val { font-family: var(--font-mono); font-weight: 500; }
+
+  .share-btn {
+    width: 100%; padding: 14px; border-radius: 12px;
+    background: var(--surface2); color: var(--accent);
+    border: 0.5px solid var(--accent); font-family: var(--font);
+    font-size: 14px; font-weight: 500; cursor: pointer;
+    transition: all .15s; margin-bottom: 8px;
+  }
+  .share-btn:active { transform: scale(0.98); }
+  .share-note { font-size: 11px; color: var(--muted); text-align: center; font-family: var(--font-mono); }
+
+  /* ── Rec indicator ── */
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+  .rec-dot { width: 8px; height: 8px; background: var(--red); border-radius: 50%; animation: blink 1.2s ease-in-out infinite; display: inline-block; margin-right: 6px; }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed; bottom: calc(env(safe-area-inset-bottom, 0px) + 90px);
+    left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--surface2); color: var(--text); font-family: var(--font-mono);
+    font-size: 12px; padding: 8px 16px; border-radius: 20px;
+    border: 0.5px solid var(--border); opacity: 0;
+    transition: all .3s; pointer-events: none; white-space: nowrap; z-index: 100;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ── Bottom safe area ── */
+  .bottom-safe { height: calc(env(safe-area-inset-bottom, 0px) + 8px); }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 0; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="logo">Trafikkstøy<span> demo</span></div>
+    <div class="session-info" id="sessionInfo">— ikke aktiv —</div>
+  </header>
+
+  <nav>
+    <button class="tab active" onclick="showPanel('measure')">Måling</button>
+    <button class="tab" onclick="showPanel('camera')">Kamera</button>
+    <button class="tab" onclick="showPanel('vehicles')">Kjøretøy</button>
+    <button class="tab" onclick="showPanel('report')">Rapport</button>
+  </nav>
+
+  <!-- PANEL: KAMERA -->
+  <div class="panel" id="panel-camera" style="flex:1;padding:0;">
+
+    <!-- Video element -->
+    <video id="cameraVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;display:block;"></video>
+
+    <!-- Canvas for snapshot (skjult) -->
+    <canvas id="snapCanvas" style="display:none;"></canvas>
+
+    <!-- AI detection tags layer -->
+    <div id="aiTagsContainer"></div>
+
+    <!-- API-nøkkel prompt -->
+    <div class="api-key-overlay" id="apiKeyOverlay">
+      <div class="api-key-title">CLAUDE AI GJENKJENNING</div>
+      <div class="api-key-desc">
+        Lim inn din Anthropic API-nøkkel for å aktivere automatisk gjenkjenning av kjøretøytype og registreringsnummer i Trafikkstøy demo.
+      </div>
+      <input class="api-key-input" type="password" id="apiKeyInput"
+        placeholder="sk-ant-api03-..." autocomplete="off" autocorrect="off" spellcheck="false">
+      <button class="api-key-btn" onclick="saveApiKey()">Aktiver gjenkjenning</button>
+      <span class="api-key-skip" onclick="skipApiKey()">Fortsett uten gjenkjenning →</span>
+    </div>
+
+    <!-- Placeholder når kamera ikke er startet -->
+    <div class="cam-placeholder" id="camPlaceholder">
+      <div class="cam-placeholder-icon">📷</div>
+      <div class="cam-placeholder-text">Trykk for å starte kamera<br>og sikte inn trafikken</div>
+      <button class="cam-ctrl-btn" onclick="startCamera()" style="pointer-events:all;">Start kamera</button>
+    </div>
+
+    <!-- Overlay (skjult til kamera er aktivt) -->
+    <div class="cam-overlay" id="camOverlay" style="display:none;">
+
+      <!-- Topp: dB + L_Aeq -->
+      <div class="cam-top">
+        <div class="cam-db-badge">
+          <div class="cam-db-val" id="camDbVal" style="color:var(--green)">—</div>
+          <div class="cam-db-lbl">dB SPL</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+          <div class="cam-laeq-badge">
+            <div class="cam-laeq-val" id="camLaeqVal">— <span style="font-size:11px;opacity:.6;">L_Aeq</span></div>
+            <div class="cam-laeq-lbl">dB(A)</div>
+          </div>
+          <button class="cam-ctrl-btn" onclick="flipCamera()" style="pointer-events:all;font-size:12px;padding:6px 12px;">Snu</button>
+        </div>
+      </div>
+
+      <!-- Midten: retningstellere -->
+      <div class="cam-dir-strip">
+        <div class="cam-dir-pill">
+          <span class="cam-dir-arrow">←</span>
+          <span class="cam-dir-num" id="camDirA">0</span>
+        </div>
+        <div class="cam-dir-pill">
+          <span class="cam-dir-num" id="camDirB">0</span>
+          <span class="cam-dir-arrow">→</span>
+        </div>
+      </div>
+
+      <!-- Bunn: kjøretøyknapper -->
+      <div class="cam-bottom">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;pointer-events:all;">
+          <button class="cam-ctrl-btn" onclick="camAddDir(-1)">← +1 Retning A</button>
+          <button class="cam-ctrl-btn" onclick="camAddDir(1)">+1 Retning B →</button>
+        </div>
+        <div class="cam-btn-grid">
+          <div class="cam-veh-btn" id="cbtn-car" onclick="camAddVehicle('car')">
+            <span class="cam-veh-ico">🚗</span>
+            <span class="cam-veh-name">Personbil</span>
+            <span class="cam-veh-cnt" id="ccnt-car">0</span>
+          </div>
+          <div class="cam-veh-btn" id="cbtn-truck" onclick="camAddVehicle('truck')">
+            <span class="cam-veh-ico">🚛</span>
+            <span class="cam-veh-name">Lastebil</span>
+            <span class="cam-veh-cnt" id="ccnt-truck">0</span>
+          </div>
+          <div class="cam-veh-btn" id="cbtn-bus" onclick="camAddVehicle('bus')">
+            <span class="cam-veh-ico">🚌</span>
+            <span class="cam-veh-name">Buss</span>
+            <span class="cam-veh-cnt" id="ccnt-bus">0</span>
+          </div>
+          <div class="cam-veh-btn" id="cbtn-motorcycle" onclick="camAddVehicle('motorcycle')">
+            <span class="cam-veh-ico">🏍️</span>
+            <span class="cam-veh-name">MC</span>
+            <span class="cam-veh-cnt" id="ccnt-motorcycle">0</span>
+          </div>
+          <div class="cam-veh-btn" id="cbtn-tractor" onclick="camAddVehicle('tractor')">
+            <span class="cam-veh-ico">🚜</span>
+            <span class="cam-veh-name">Traktor</span>
+            <span class="cam-veh-cnt" id="ccnt-tractor">0</span>
+          </div>
+          <div class="cam-veh-btn" id="cbtn-van" onclick="camAddVehicle('van')">
+            <span class="cam-veh-ico">🚐</span>
+            <span class="cam-veh-name">Varebil</span>
+            <span class="cam-veh-cnt" id="ccnt-van">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Støynivåbar nederst -->
+      <div class="cam-level-bar">
+        <div class="cam-level-fill" id="camLevelFill"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 1: MÅLING -->
+  <div class="panel active" id="panel-measure">
+
+    <div class="meter-wrap">
+      <div class="meter-ring">
+        <svg width="220" height="220" viewBox="0 0 220 220">
+          <circle class="ring-bg" cx="110" cy="110" r="96"/>
+          <circle class="ring-fill" id="ringFill" cx="110" cy="110" r="96"
+            stroke-dasharray="603.2" stroke-dashoffset="603.2" stroke="var(--green)"/>
+        </svg>
+        <div class="meter-center">
+          <div class="db-value" id="dbValue" style="color:var(--muted)">—</div>
+          <div class="db-unit">dB SPL</div>
+        </div>
+      </div>
+
+      <div class="level-bar-wrap">
+        <div class="level-bar-track">
+          <div class="level-bar-fill" id="levelFill"></div>
+        </div>
+        <div class="level-labels">
+          <span>0</span><span>55</span><span>65</span><span>100 dB</span>
+        </div>
+      </div>
+
+      <div class="status-badge" id="statusBadge"
+        style="color:var(--muted);border-color:var(--border)">
+        KLAR TIL START
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">L_Aeq</div>
+        <div class="stat-val" id="laeqVal">—</div>
+        <div class="stat-unit">dB(A)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">MAKS</div>
+        <div class="stat-val" id="maxVal">—</div>
+        <div class="stat-unit">dB SPL</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">HENDELSER</div>
+        <div class="stat-val" id="eventCount">0</div>
+        <div class="stat-unit">over grense</div>
+      </div>
+    </div>
+
+    <div class="waveform-wrap">
+      <canvas class="waveform-canvas" id="waveformCanvas"></canvas>
+    </div>
+
+    <div class="threshold-row">
+      <span class="threshold-label">Grense</span>
+      <input type="range" min="50" max="90" value="65" step="1"
+        id="thresholdSlider" oninput="updateThreshold(this.value)">
+      <span class="threshold-val" id="thresholdVal">65 dB</span>
+    </div>
+
+    <button class="record-btn idle" id="recordBtn" onclick="toggleRecording()">
+      Start måling
+    </button>
+
+    <div class="bottom-safe"></div>
+  </div>
+
+  <!-- PANEL 2: KJØRETØY -->
+  <div class="panel" id="panel-vehicles" style="overflow-y:auto;">
+
+    <div class="vehicle-grid" id="vehicleGrid">
+      <div class="vehicle-card" id="card-car" onclick="addVehicle('car')">
+        <div class="vehicle-icon">🚗</div>
+        <div class="vehicle-name">Personbil</div>
+        <div class="vehicle-count" id="count-car">0</div>
+      </div>
+      <div class="vehicle-card" id="card-truck" onclick="addVehicle('truck')">
+        <div class="vehicle-icon">🚛</div>
+        <div class="vehicle-name">Lastebil</div>
+        <div class="vehicle-count" id="count-truck">0</div>
+      </div>
+      <div class="vehicle-card" id="card-bus" onclick="addVehicle('bus')">
+        <div class="vehicle-icon">🚌</div>
+        <div class="vehicle-name">Buss</div>
+        <div class="vehicle-count" id="count-bus">0</div>
+      </div>
+      <div class="vehicle-card" id="card-motorcycle" onclick="addVehicle('motorcycle')">
+        <div class="vehicle-icon">🏍️</div>
+        <div class="vehicle-name">MC</div>
+        <div class="vehicle-count" id="count-motorcycle">0</div>
+      </div>
+      <div class="vehicle-card" id="card-tractor" onclick="addVehicle('tractor')">
+        <div class="vehicle-icon">🚜</div>
+        <div class="vehicle-name">Traktor</div>
+        <div class="vehicle-count" id="count-tractor">0</div>
+      </div>
+      <div class="vehicle-card" id="card-van" onclick="addVehicle('van')">
+        <div class="vehicle-icon">🚐</div>
+        <div class="vehicle-name">Varebil</div>
+        <div class="vehicle-count" id="count-van">0</div>
+      </div>
+    </div>
+
+    <div class="direction-row">
+      <div class="dir-card">
+        <div class="dir-arrow">←</div>
+        <div class="dir-label">Retning A</div>
+        <div class="dir-count" id="dirA">0</div>
+      </div>
+      <div class="dir-card">
+        <div class="dir-arrow">→</div>
+        <div class="dir-label">Retning B</div>
+        <div class="dir-count" id="dirB">0</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      <button class="reset-btn" onclick="addDirection(-1)" style="color:var(--text);font-size:16px;">← +1 A</button>
+      <button class="reset-btn" onclick="addDirection(1)" style="color:var(--text);font-size:16px;">+1 B →</button>
+    </div>
+
+    <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px;" id="eventLogVeh">
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-bottom:8px;">SISTE HENDELSER</div>
+      <div class="event-log" id="eventLog" style="max-height:140px;">
+        <div class="event-empty">Ingen hendelser ennå.<br>Start måling og kjøretøy registreres her.</div>
+      </div>
+    </div>
+
+    <button class="reset-btn" onclick="resetVehicles()">Nullstill teller</button>
+    <div class="bottom-safe"></div>
+  </div>
+
+  <!-- PANEL 3: RAPPORT -->
+  <div class="panel" id="panel-report" style="overflow-y:auto;">
+
+    <div class="report-header">
+      <div class="report-title">Beregnet L_Aeq</div>
+      <div>
+        <span class="report-laeq" id="reportLaeq">—</span>
+        <span class="report-laeq-unit"> dB(A)</span>
+      </div>
+      <div class="zone-badge" id="zoneBadge" style="color:var(--muted);border-color:var(--muted);">
+        INGEN DATA
+      </div>
+    </div>
+
+    <div class="report-grid">
+      <div class="report-item">
+        <div class="report-item-label">L_max</div>
+        <div class="report-item-val" id="reportMax">—</div>
+      </div>
+      <div class="report-item">
+        <div class="report-item-label">Lden (est.)</div>
+        <div class="report-item-val" id="reportLden">—</div>
+      </div>
+      <div class="report-item">
+        <div class="report-item-label">Varighet</div>
+        <div class="report-item-val" id="reportDuration">—</div>
+      </div>
+      <div class="report-item">
+        <div class="report-item-label">Totalt kjøretøy</div>
+        <div class="report-item-val" id="reportVehicles">0</div>
+      </div>
+    </div>
+
+    <div class="law-box">
+      <div class="law-title">T-1442 GRENSEVERDIER</div>
+      <div class="law-row">
+        <span class="law-row-label">Gul sone (nedre)</span>
+        <span class="law-row-val">55 dB Lden</span>
+      </div>
+      <div class="law-row">
+        <span class="law-row-label">Gul sone (øvre)</span>
+        <span class="law-row-val">65 dB Lden</span>
+      </div>
+      <div class="law-row">
+        <span class="law-row-label">Rød sone</span>
+        <span class="law-row-val">&gt; 65 dB Lden</span>
+      </div>
+      <div class="law-row">
+        <span class="law-row-label">Innendørs tiltaksplikt</span>
+        <span class="law-row-val">42 dB (forurl.forsk.)</span>
+      </div>
+    </div>
+
+    <div class="law-box" id="vehicleSummary">
+      <div class="law-title">KJØRETØYFORDELING</div>
+      <div id="vehicleSummaryRows">
+        <div class="law-row"><span class="law-row-label">Ingen kjøretøy registrert</span></div>
+      </div>
+    </div>
+
+    <button class="share-btn" onclick="shareReport()">Del rapport som tekst</button>
+    <div class="share-note">Kopierer sammendrag til utklippstavlen</div>
+
+    <div class="bottom-safe"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let recording = false;
+let audioCtx = null, analyser = null, source = null, stream = null;
+let animFrame = null, timerInterval = null;
+let startTime = null, elapsed = 0;
+let dbHistory = [];
+let maxDb = 0;
+let threshold = 65;
+let eventCount = 0;
+let lastAlarm = 0;
+let waveformBuf = [];
+
+const vehicles = { car: 0, truck: 0, bus: 0, motorcycle: 0, tractor: 0, van: 0 };
+const vehicleNames = { car: 'Personbil', truck: 'Lastebil', bus: 'Buss', motorcycle: 'MC', tractor: 'Traktor', van: 'Varebil' };
+let dirA = 0, dirB = 0;
+
+// ── Panel navigation ───────────────────────────────────────────────────────
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  event.target.classList.add('active');
+  if (name === 'report') updateReport();
+  // Stopp kamera når vi forlater kamera-panelet
+  if (name !== 'camera' && cameraStream) {
+    // Behold stream aktiv for lyd, men skjul video
+    // (bruker vil typisk ha kamera og lyd samtidig)
+  }
+}
+
+// ── dB helpers ─────────────────────────────────────────────────────────────
+function rmsToDb(rms) {
+  if (rms <= 0) return 0;
+  return Math.max(0, Math.min(120, 20 * Math.log10(rms) + 94));
+}
+
+function laeq(arr) {
+  if (!arr.length) return 0;
+  const s = arr.reduce((a, v) => a + Math.pow(10, v / 10), 0);
+  return 10 * Math.log10(s / arr.length);
+}
+
+function getColor(db) {
+  if (db < 55) return 'var(--green)';
+  if (db < 65) return 'var(--yellow)';
+  if (db < 75) return 'var(--orange)';
+  return 'var(--red)';
+}
+
+function getZone(laeqVal) {
+  const lden = laeqVal + 3;
+  if (lden < 55) return { label: 'GRØNN SONE', color: 'var(--green)' };
+  if (lden < 65) return { label: 'GUL SONE', color: 'var(--yellow)' };
+  return { label: 'RØD SONE', color: 'var(--red)' };
+}
+
+// ── Audio processing ───────────────────────────────────────────────────────
+function processAudio() {
+  if (!analyser) return;
+  const buf = new Float32Array(analyser.fftSize);
+  analyser.getFloatTimeDomainData(buf);
+  const rms = Math.sqrt(buf.reduce((s, v) => s + v * v, 0) / buf.length);
+  const db = rmsToDb(rms);
+
+  dbHistory.push(db);
+  if (dbHistory.length > 2400) dbHistory.shift();
+  if (db > maxDb) { maxDb = db; }
+
+  const aeq = laeq(dbHistory);
+  updateMeter(db, aeq);
+  pushWaveform(db);
+
+  const now = Date.now();
+  if (db >= threshold && now - lastAlarm > 3000) {
+    lastAlarm = now;
+    eventCount++;
+    document.getElementById('eventCount').textContent = eventCount;
+    addEventItem(db);
+  }
+
+  animFrame = requestAnimationFrame(processAudio);
+}
+
+// ── UI updates ─────────────────────────────────────────────────────────────
+function updateMeter(db, aeq) {
+  currentDbForCam = db;
+  const color = getColor(db);
+  const pct = Math.min(1, Math.max(0, (db - 30) / 70));
+  const circ = 603.2;
+  const offset = circ * (1 - pct);
+
+  document.getElementById('dbValue').textContent = Math.round(db);
+  document.getElementById('dbValue').style.color = color;
+  document.getElementById('ringFill').style.strokeDashoffset = offset;
+  document.getElementById('ringFill').style.stroke = color;
+  document.getElementById('levelFill').style.width = (pct * 100) + '%';
+  document.getElementById('levelFill').style.background = color;
+  document.getElementById('laeqVal').textContent = Math.round(aeq);
+  document.getElementById('maxVal').textContent = Math.round(maxDb);
+
+  // Oppdater kamera-overlay
+  const camDb = document.getElementById('camDbVal');
+  const camLaeq = document.getElementById('camLaeqVal');
+  const camFill = document.getElementById('camLevelFill');
+  if (camDb) { camDb.textContent = Math.round(db); camDb.style.color = color; }
+  if (camLaeq) camLaeq.innerHTML = Math.round(aeq) + ' <span style="font-size:11px;opacity:.6;">L_Aeq</span>';
+  if (camFill) { camFill.style.width = (pct * 100) + '%'; camFill.style.background = color; }
+
+  const zone = getZone(aeq);
+  const badge = document.getElementById('statusBadge');
+  badge.innerHTML = `<span class="rec-dot"></span>MÅLER`;
+  badge.style.color = 'var(--red)';
+  badge.style.borderColor = 'var(--red)';
+}
+
+// ── Waveform ───────────────────────────────────────────────────────────────
+function pushWaveform(db) {
+  waveformBuf.push(db);
+  const canvas = document.getElementById('waveformCanvas');
+  const W = canvas.offsetWidth;
+  const H = canvas.offsetHeight;
+  if (canvas.width !== W * devicePixelRatio) {
+    canvas.width = W * devicePixelRatio;
+    canvas.height = H * devicePixelRatio;
+  }
+  const ctx = canvas.getContext('2d');
+  const dpr = devicePixelRatio;
+  const barW = 3 * dpr, gap = 1 * dpr;
+  const maxBars = Math.floor((W * dpr) / (barW + gap));
+  if (waveformBuf.length > maxBars) waveformBuf.shift();
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Reference lines
+  [55, 65].forEach(ref => {
+    const y = H * dpr - ((ref - 30) / 70) * (H - 8) * dpr;
+    ctx.strokeStyle = ref === 55 ? '#f0b42940' : '#e8402a40';
+    ctx.lineWidth = dpr;
+    ctx.setLineDash([3 * dpr, 3 * dpr]);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  waveformBuf.forEach((v, i) => {
+    const barH = Math.max(2 * dpr, ((v - 30) / 70) * (H - 8) * dpr);
+    const x = i * (barW + gap);
+    const y = (H * dpr - barH) / 2;
+    ctx.fillStyle = v < 55 ? '#22c77a' : v < 65 ? '#f0b429' : '#e8402a';
+    ctx.beginPath();
+    ctx.roundRect(x, y, barW, barH, dpr);
+    ctx.fill();
+  });
+}
+
+// ── Timer ──────────────────────────────────────────────────────────────────
+function formatTime(s) {
+  return [Math.floor(s/3600), Math.floor((s%3600)/60), s%60]
+    .map(n => String(n).padStart(2,'0')).join(':');
+}
+
+// ── Toggle recording ───────────────────────────────────────────────────────
+async function toggleRecording() {
+  if (!recording) {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      source = audioCtx.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      recording = true;
+      startTime = Date.now();
+      elapsed = 0;
+      dbHistory = []; maxDb = 0; eventCount = 0; waveformBuf = [];
+      document.getElementById('eventCount').textContent = '0';
+      document.getElementById('eventLog').innerHTML =
+        '<div class="event-empty">Logger hendelser over ' + threshold + ' dB…</div>';
+
+      const btn = document.getElementById('recordBtn');
+      btn.textContent = 'Stopp måling';
+      btn.className = 'record-btn recording';
+
+      timerInterval = setInterval(() => {
+        elapsed = Math.floor((Date.now() - startTime) / 1000);
+        document.getElementById('sessionInfo').innerHTML =
+          '<span class="rec-dot"></span>' + formatTime(elapsed);
+      }, 1000);
+
+      processAudio();
+    } catch (e) {
+      showToast('Mikrofontilgang nektet. Sjekk innstillinger.');
+    }
+  } else {
+    cancelAnimationFrame(animFrame);
+    clearInterval(timerInterval);
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    if (audioCtx) audioCtx.close();
+    recording = false;
+
+    const btn = document.getElementById('recordBtn');
+    btn.textContent = 'Start måling';
+    btn.className = 'record-btn idle';
+
+    const badge = document.getElementById('statusBadge');
+    badge.textContent = 'AVSLUTTET – ' + formatTime(elapsed);
+    badge.style.color = 'var(--muted)';
+    badge.style.borderColor = 'var(--border)';
+
+    document.getElementById('sessionInfo').textContent = formatTime(elapsed) + ' lagret';
+    updateReport();
+    showToast('Måling avsluttet – se Rapport');
+  }
+}
+
+// ── Threshold ──────────────────────────────────────────────────────────────
+function updateThreshold(v) {
+  threshold = parseInt(v);
+  document.getElementById('thresholdVal').textContent = threshold + ' dB';
+}
+
+// ── Event log ──────────────────────────────────────────────────────────────
+let logFirst = true;
+function addEventItem(db) {
+  const log = document.getElementById('eventLog');
+  if (logFirst) { log.innerHTML = ''; logFirst = false; }
+  const t = new Date().toLocaleTimeString('nb-NO');
+  const color = getColor(db);
+  const div = document.createElement('div');
+  div.className = 'event-item';
+  div.innerHTML = `
+    <span class="event-db" style="color:${color}">${Math.round(db)} dB</span>
+    <span class="event-meta">${t}<br>over ${threshold} dB</span>`;
+  log.prepend(div);
+  if (log.children.length > 20) log.removeChild(log.lastChild);
+}
+
+// ── Vehicle counting ───────────────────────────────────────────────────────
+function addVehicle(type) {
+  vehicles[type]++;
+  document.getElementById('count-' + type).textContent = vehicles[type];
+  const card = document.getElementById('card-' + type);
+  card.classList.add('highlighted');
+  setTimeout(() => card.classList.remove('highlighted'), 300);
+  showToast(vehicleNames[type] + ' registrert');
+}
+
+function addDirection(dir) {
+  if (dir === -1) { dirA++; document.getElementById('dirA').textContent = dirA; }
+  else { dirB++; document.getElementById('dirB').textContent = dirB; }
+}
+
+function resetVehicles() {
+  Object.keys(vehicles).forEach(k => { vehicles[k] = 0; document.getElementById('count-' + k).textContent = 0; });
+  dirA = 0; dirB = 0;
+  document.getElementById('dirA').textContent = 0;
+  document.getElementById('dirB').textContent = 0;
+  showToast('Tellere nullstilt');
+}
+
+// ── Report ─────────────────────────────────────────────────────────────────
+function updateReport() {
+  const aeq = dbHistory.length ? laeq(dbHistory) : null;
+  const lden = aeq ? aeq + 3 : null;
+  const zone = aeq ? getZone(aeq) : null;
+  const totalVeh = Object.values(vehicles).reduce((a,b)=>a+b,0);
+
+  document.getElementById('reportLaeq').textContent = aeq ? Math.round(aeq * 10) / 10 : '—';
+  document.getElementById('reportMax').textContent = maxDb ? Math.round(maxDb) : '—';
+  document.getElementById('reportLden').textContent = lden ? (Math.round(lden * 10) / 10) : '—';
+  document.getElementById('reportDuration').textContent = elapsed ? formatTime(elapsed) : '—';
+  document.getElementById('reportVehicles').textContent = totalVeh;
+
+  const badge = document.getElementById('zoneBadge');
+  if (zone) {
+    badge.textContent = zone.label;
+    badge.style.color = zone.color;
+    badge.style.borderColor = zone.color;
+    badge.style.background = zone.color + '18';
+  }
+
+  // Vehicle summary
+  const rows = Object.entries(vehicles)
+    .filter(([,v]) => v > 0)
+    .map(([k,v]) => `<div class="law-row">
+      <span class="law-row-label">${vehicleNames[k]}</span>
+      <span class="law-row-val">${v}</span>
+    </div>`).join('');
+  document.getElementById('vehicleSummaryRows').innerHTML = rows ||
+    '<div class="law-row"><span class="law-row-label">Ingen registrert</span></div>';
+}
+
+// ── Share ──────────────────────────────────────────────────────────────────
+function shareReport() {
+  const aeq = dbHistory.length ? laeq(dbHistory) : null;
+  const lden = aeq ? aeq + 3 : null;
+  const totalVeh = Object.values(vehicles).reduce((a,b)=>a+b,0);
+  const zone = aeq ? getZone(aeq) : null;
+  const vehLines = Object.entries(vehicles).filter(([,v])=>v>0)
+    .map(([k,v])=>`  ${vehicleNames[k]}: ${v}`).join('\n');
+
+  const text = `TrafikKart – Støyrapport
+Dato: ${new Date().toLocaleDateString('nb-NO')}
+Varighet: ${formatTime(elapsed)}
+
+L_Aeq:  ${aeq ? (Math.round(aeq*10)/10) + ' dB(A)' : '—'}
+Lden:   ${lden ? (Math.round(lden*10)/10) + ' dB(A)' : '—'}
+L_max:  ${maxDb ? Math.round(maxDb) + ' dB' : '—'}
+Sone:   ${zone ? zone.label : '—'} (T-1442)
+
+Kjøretøy totalt: ${totalVeh}
+${vehLines}
+
+Hendelser over ${threshold} dB: ${eventCount}
+
+Kilde: Trafikkstøy demo
+Standard: NS-EN ISO 1996-2 / T-1442`;
+
+  if (navigator.share) {
+    navigator.share({ title: 'TrafikKart rapport', text });
+  } else if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => showToast('Kopiert til utklippstavlen'));
+  }
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ── API Key ────────────────────────────────────────────────────────────────
+let anthropicApiKey = localStorage.getItem('tk_api_key') || '';
+
+function saveApiKey() {
+  const val = document.getElementById('apiKeyInput').value.trim();
+  if (!val.startsWith('sk-ant')) {
+    showToast('Ugyldig nøkkel – skal starte med sk-ant');
+    return;
+  }
+  anthropicApiKey = val;
+  localStorage.setItem('tk_api_key', val);
+  document.getElementById('apiKeyOverlay').style.display = 'none';
+  startCamera();
+}
+
+function skipApiKey() {
+  document.getElementById('apiKeyOverlay').style.display = 'none';
+  startCamera();
+}
+
+// Sjekk om nøkkel er lagret fra før
+window.addEventListener('load', () => {
+  if (anthropicApiKey) {
+    document.getElementById('apiKeyOverlay').style.display = 'none';
+  }
+});
+
+// ── Camera ─────────────────────────────────────────────────────────────────
+let cameraStream = null;
+let facingMode = 'environment';
+let aiInterval = null;
+let isAnalyzing = false;
+let lastTags = [];
+
+async function startCamera() {
+  try {
+    const constraints = {
+      video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false,
+    };
+    cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+    const video = document.getElementById('cameraVideo');
+    video.srcObject = cameraStream;
+    await video.play();
+
+    document.getElementById('camPlaceholder').style.display = 'none';
+    document.getElementById('camOverlay').style.display = 'flex';
+    showToast(anthropicApiKey ? 'AI-gjenkjenning aktiv' : 'Kamera aktivt – manuell telling');
+
+    // Start AI-analyse hvert 3. sekund hvis API-nøkkel finnes
+    if (anthropicApiKey) {
+      aiInterval = setInterval(analyzeFrame, 3000);
+    }
+  } catch (e) {
+    showToast('Kameratilgang nektet. Sjekk innstillinger i Safari.');
+  }
+}
+
+async function flipCamera() {
+  if (aiInterval) { clearInterval(aiInterval); aiInterval = null; }
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+  clearTags();
+  await startCamera();
+}
+
+// ── AI frame analysis ──────────────────────────────────────────────────────
+async function analyzeFrame() {
+  if (isAnalyzing || !anthropicApiKey) return;
+  const video = document.getElementById('cameraVideo');
+  if (!video.videoWidth) return;
+
+  isAnalyzing = true;
+  const panel = document.getElementById('panel-camera');
+  panel.classList.add('cam-scanning');
+
+  try {
+    // Ta snapshot av video til canvas
+    const canvas = document.getElementById('snapCanvas');
+    // Skaler ned til 640px bredde for å holde API-kostnaden lav
+    const scale = Math.min(1, 640 / video.videoWidth);
+    canvas.width  = Math.round(video.videoWidth  * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const base64 = canvas.toDataURL('image/jpeg', 0.75).split(',')[1];
+
+    const prompt = `Du ser et bilde fra et kamera som filmer trafikk på en norsk vei.
+
+Analyser bildet og returner KUN dette JSON-formatet, ingen annen tekst:
+{
+  "vehicles": [
+    {
+      "type": "car|truck|bus|motorcycle|tractor|van",
+      "plate": "AB12345 eller null hvis ikke synlig",
+      "confidence": 0.0-1.0,
+      "position": { "x": 0-100, "y": 0-100 },
+      "direction": "left|right|unknown"
+    }
+  ]
+}
+
+Bruk disse typene: car=personbil, truck=lastebil, bus=buss, motorcycle=MC/motorsykkel, tractor=traktor/anleggsmaskin, van=varebil.
+Norske reg.nr-format: 2 bokstaver + 5 siffer (eks: AB12345) eller EL/EK + 5 siffer for elbil.
+Hvis bildet ikke inneholder kjøretøy, returner { "vehicles": [] }.`;
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 500,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
+            { type: 'text',  text: prompt }
+          ]
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        showToast('API-nøkkel ugyldig');
+        clearInterval(aiInterval); aiInterval = null;
+      }
+      return;
+    }
+
+    const data = await response.json();
+    const raw = data.content?.find(b => b.type === 'text')?.text || '{}';
+
+    let parsed;
+    try {
+      const clean = raw.replace(/```json|```/g, '').trim();
+      parsed = JSON.parse(clean);
+    } catch { return; }
+
+    const detected = parsed.vehicles || [];
+    renderTags(detected);
+
+    // Auto-tell kjøretøy med høy confidence (>0.75)
+    detected.forEach(v => {
+      if (v.confidence > 0.75 && vehicles[v.type] !== undefined) {
+        vehicles[v.type]++;
+        document.getElementById('count-' + v.type).textContent = vehicles[v.type];
+        document.getElementById('ccnt-' + v.type).textContent  = vehicles[v.type];
+
+        // Flash
+        const btn = document.getElementById('cbtn-' + v.type);
+        if (btn) { btn.classList.add('flash'); setTimeout(() => btn.classList.remove('flash'), 400); }
+
+        // Retning
+        if (v.direction === 'left')  { dirA++; document.getElementById('dirA').textContent = dirA; document.getElementById('camDirA').textContent = dirA; }
+        if (v.direction === 'right') { dirB++; document.getElementById('dirB').textContent = dirB; document.getElementById('camDirB').textContent = dirB; }
+      }
+    });
+
+  } catch (err) {
+    console.warn('AI-analyse feil:', err);
+  } finally {
+    isAnalyzing = false;
+    panel.classList.remove('cam-scanning');
+  }
+}
+
+// ── Render detection tags på video ─────────────────────────────────────────
+const TYPE_COLORS = {
+  car:        '#22c77a',
+  van:        '#22c77a',
+  truck:      '#e8402a',
+  bus:        '#f07030',
+  motorcycle: '#f0b429',
+  tractor:    '#f0b429',
+};
+
+const TYPE_NAMES = {
+  car: 'Personbil', van: 'Varebil', truck: 'Lastebil',
+  bus: 'Buss', motorcycle: 'MC', tractor: 'Traktor',
+};
+
+function renderTags(vehicles_detected) {
+  clearTags();
+  const container = document.getElementById('aiTagsContainer');
+  const panel = document.getElementById('panel-camera');
+  const W = panel.offsetWidth;
+  const H = panel.offsetHeight;
+
+  vehicles_detected.forEach((v, i) => {
+    const tag = document.createElement('div');
+    tag.className = 'ai-tag';
+
+    const color = TYPE_COLORS[v.type] || '#fff';
+    const name  = TYPE_NAMES[v.type]  || v.type;
+
+    // Posisjon fra Claude (0-100 prosentkoordinater)
+    const x = Math.min(90, Math.max(2, v.position?.x ?? (20 + i * 25)));
+    const y = Math.min(85, Math.max(5, v.position?.y ?? (30 + i * 15)));
+
+    tag.style.left = x + '%';
+    tag.style.top  = y + '%';
+
+    // Bygger innhold
+    let html = `<div class="ai-tag-type" style="color:${color}">${name}</div>`;
+    if (v.plate) html += `<div class="ai-tag-plate">${v.plate}</div>`;
+    html += `<div class="ai-tag-db" style="color:${color}88">${Math.round(currentDbForCam)} dB · ${Math.round(v.confidence * 100)}%</div>`;
+    tag.innerHTML = html;
+
+    // Liten prikk i fargen
+    tag.style.borderColor = color + '55';
+
+    container.appendChild(tag);
+
+    // Fjern tag etter 4 sekunder
+    setTimeout(() => tag.remove(), 4000);
+  });
+}
+
+function clearTags() {
+  document.getElementById('aiTagsContainer').innerHTML = '';
+}
+
+function camAddVehicle(type) {
+  vehicles[type]++;
+  document.getElementById('count-' + type).textContent = vehicles[type];
+  document.getElementById('ccnt-' + type).textContent = vehicles[type];
+  const btn = document.getElementById('cbtn-' + type);
+  btn.classList.add('flash');
+  setTimeout(() => btn.classList.remove('flash'), 300);
+  const card = document.getElementById('card-' + type);
+  if (card) { card.classList.add('highlighted'); setTimeout(() => card.classList.remove('highlighted'), 300); }
+  showToast(vehicleNames[type] + ' registrert');
+  addEventItem(currentDbForCam || 0);
+}
+
+function camAddDir(dir) {
+  if (dir === -1) { dirA++; document.getElementById('dirA').textContent = dirA; document.getElementById('camDirA').textContent = dirA; }
+  else { dirB++; document.getElementById('dirB').textContent = dirB; document.getElementById('camDirB').textContent = dirB; }
+}
+
+let currentDbForCam = 0;
+
+// ── Init ───────────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => { waveformBuf = []; });
+</script>
+</body>
+</html>
